@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: qr-website
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+```
+
+Save and close.
+
+---
+
+Once both files are created, let's push them to GitHub:
+```
+git add .
+git commit -m "Add deployment config"
+git push
