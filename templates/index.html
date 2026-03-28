@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <div class="bg-orbs">
+        <div class="orb orb1"></div>
+        <div class="orb orb2"></div>
+        <div class="orb orb3"></div>
+    </div>
+
+    <div class="container">
+        <div class="glass-card">
+
+            <div class="header">
+                <h1>QR Generator</h1>
+                <p>Transform any link into a scannable code</p>
+            </div>
+
+            <div class="form">
+
+                <div class="field">
+                    <label>URL</label>
+                    <input type="text" id="url" placeholder="https://www.example.com" />
+                </div>
+
+                <div class="color-row">
+                    <div class="field">
+                        <label>Foreground</label>
+                        <div class="color-input-group">
+                            <input type="color" id="fg_color" value="#000000" oninput="syncHex('fg')" />
+                            <input type="text" id="fg_hex" value="#000000" maxlength="7" placeholder="#000000" oninput="syncPicker('fg')" />
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Background</label>
+                        <div class="color-input-group">
+                            <input type="color" id="bg_color" value="#ffffff" oninput="syncHex('bg')" />
+                            <input type="text" id="bg_hex" value="#ffffff" maxlength="7" placeholder="#ffffff" oninput="syncPicker('bg')" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="label-row">
+                    <div class="field label-field">
+                        <label>Label <span class="optional">(optional)</span></label>
+                        <input type="text" id="label" placeholder="e.g. My Portfolio..." />
+                    </div>
+                    <div class="field font-field">
+                        <label>Font</label>
+                        <select id="font">
+                            {% for font in fonts %}
+                            <option value="{{ font }}">{{ font }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <button onclick="generateQR()" id="generateBtn">
+                    <span id="btnText">Generate QR Code</span>
+                </button>
+
+            </div>
+
+            <div class="result" id="result">
+                <div class="qr-wrapper">
+                    <img id="qr_image" src="" alt="QR Code" />
+                </div>
+                <a id="download_btn" download="qrcode.png" class="download-btn">
+                    ↓ Download QR Code
+                </a>
+            </div>
+
+            <p class="error" id="error"></p>
+
+        </div>
+
+        <!-- History Section -->
+        <div class="history-section" id="history-section" style="display:none;">
+            <h2 class="history-title">Recent</h2>
+            <div class="history-list" id="history-list"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const history = [];
+
+        function syncHex(type) {
+            const picker = document.getElementById(type + "_color");
+            const hex = document.getElementById(type + "_hex");
+            hex.value = picker.value;
+        }
+
+        function syncPicker(type) {
+            const hex = document.getElementById(type + "_hex");
+            const picker = document.getElementById(type + "_color");
+            const val = hex.value.trim();
+            if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                picker.value = val;
+            }
+        }
+
+        function addToHistory(url, fg_color, bg_color, label, font, imgSrc) {
+            const existingIndex = history.findIndex(item => item.url === url);
+            if (existingIndex !== -1) history.splice(existingIndex, 1);
+            history.unshift({ url, fg_color, bg_color, label, font, imgSrc });
+            if (history.length > 6) history.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const section = document.getElementById("history-section");
+            const list = document.getElementById("history-list");
+
+            if (history.length === 0) {
+                section.style.display = "none";
+                return;
+            }
+
+            section.style.display = "block";
+            list.innerHTML = "";
+
+            history.forEach(item => {
+                const card = document.createElement("div");
+                card.className = "history-card";
+
+                const shortUrl = item.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+                const displayName = item.label || shortUrl;
+
+                card.innerHTML = `
+                    <img src="${item.imgSrc}" alt="QR" />
+                    <div class="history-info">
+                        <span class="history-name">${displayName}</span>
+                        ${item.label ? `<span class="history-url">${shortUrl}</span>` : ""}
+                    </div>
+                    <div class="history-dots">
+                        <span style="background:${item.fg_color}"></span>
+                        <span style="background:${item.bg_color}; border: 1px solid #ccc"></span>
+                    </div>
+                `;
+
+                card.onclick = () => reloadFromHistory(item);
+                list.appendChild(card);
+            });
+        }
+
+        function reloadFromHistory(item) {
+            document.getElementById("url").value = item.url;
+            document.getElementById("fg_hex").value = item.fg_color;
+            document.getElementById("bg_hex").value = item.bg_color;
+            document.getElementById("fg_color").value = item.fg_color;
+            document.getElementById("bg_color").value = item.bg_color;
+            document.getElementById("label").value = item.label || "";
+            document.getElementById("font").value = item.font || "Arial";
+
+            document.getElementById("qr_image").src = item.imgSrc;
+            document.getElementById("download_btn").href = item.imgSrc;
+            document.getElementById("result").classList.add("visible");
+
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        async function generateQR() {
+            const url = document.getElementById("url").value.trim();
+            const fg_color = document.getElementById("fg_hex").value.trim() || "#000000";
+            const bg_color = document.getElementById("bg_hex").value.trim() || "#ffffff";
+            const label = document.getElementById("label").value.trim();
+            const font = document.getElementById("font").value;
+            const errorEl = document.getElementById("error");
+            const resultEl = document.getElementById("result");
+            const btn = document.getElementById("generateBtn");
+            const btnText = document.getElementById("btnText");
+
+            errorEl.textContent = "";
+            resultEl.classList.remove("visible");
+
+            if (!url) {
+                errorEl.textContent = "Please enter a URL.";
+                return;
+            }
+
+            btnText.textContent = "Generating...";
+            btn.disabled = true;
+
+            const response = await fetch("/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url, fg_color, bg_color, label, font })
+            });
+
+            const data = await response.json();
+
+            btnText.textContent = "Generate QR Code";
+            btn.disabled = false;
+
+            if (data.error) {
+                errorEl.textContent = data.error;
+                return;
+            }
+
+            const imgSrc = "data:image/png;base64," + data.image;
+            document.getElementById("qr_image").src = imgSrc;
+            document.getElementById("download_btn").href = imgSrc;
+            resultEl.classList.add("visible");
+
+            addToHistory(url, fg_color, bg_color, label, font, imgSrc);
+        }
+    </script>
+
+</body>
+</html>
