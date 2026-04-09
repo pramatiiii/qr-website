@@ -78,7 +78,7 @@ def generate():
         if label:
             qr_width, qr_height = qr_img.size
             padding = 24
-            font_size = 48
+            font_size = 60
 
             font = load_font(font_name, font_size)
 
